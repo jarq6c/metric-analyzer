@@ -55,6 +55,26 @@ def kling_gupta_efficiency(
     bias = np.mean(y_pred) / np.mean(y_true)
     return 1.0 - np.sqrt((corr - 1) ** 2.0 + (vari - 1) ** 2.0 + (bias - 1) ** 2.0)
 
+def fdc_variability(
+        y_true: npt.NDArray[np.float64],
+        y_pred: npt.NDArray[np.float64]
+) -> float:
+    """Compute the FDC-normalized flow variability."""
+    size = len(y_true)
+    y_true_sorted = np.sort(y_true) / (size * np.mean(y_true))
+    y_pred_sorted = np.sort(y_pred) / (size * np.mean(y_pred))
+    return 1.0 - 0.5 * np.sum(np.abs(y_true_sorted - y_pred_sorted))
+
+def non_parametric_kge(
+        y_true: npt.NDArray[np.float64],
+        y_pred: npt.NDArray[np.float64]
+) -> float:
+    """Compute a (mostly) non-parametric KGE."""
+    corr = stats.spearmanr(y_true, y_pred).statistic
+    vari = fdc_variability(y_true=y_true, y_pred=y_pred)
+    bias = np.mean(y_pred) / np.mean(y_true)
+    return 1.0 - np.sqrt((corr - 1) ** 2.0 + (vari - 1) ** 2.0 + (bias - 1) ** 2.0)
+
 def main(
         data_source: Path,
         plot: bool = True
@@ -69,10 +89,10 @@ def main(
     # Make erroneous predictions
     data["prediction"] = transform_time_series(
         time_series=data["observation"],
-        gain=1.0,
-        shift=0,
-        noise=0.0,
-        window=1
+        gain=2.0,
+        shift=1,
+        noise=0.1,
+        window=3
     )
 
     # Drop NA
@@ -87,8 +107,13 @@ def main(
         y_true=data["observation"].to_numpy(),
         y_pred=data["prediction"].to_numpy()
     )
+    kge_np = non_parametric_kge(
+        y_true=data["observation"].to_numpy(),
+        y_pred=data["prediction"].to_numpy()
+    )
     print(nse)
     print(kge)
+    print(kge_np)
 
     # Plot
     if plot:
